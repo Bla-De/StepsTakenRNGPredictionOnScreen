@@ -1,0 +1,9 @@
+﻿{
+  "DisplaySteps": true,
+  "DisplayLuck": true,
+  "DisplayWeather": true,
+  "DisplayGift": false,
+  "DisplayDish": false,
+  "HorizontalOffset": 0,
+  "VerticalOffset":  0
+}
