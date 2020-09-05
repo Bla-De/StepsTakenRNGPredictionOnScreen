@@ -27,6 +27,7 @@ namespace StepsTakenOnScreen
         private string mailPerson;
 
         private int lastStepsTakenCalculation = -1;
+        private int daysPlayedCalculation = -1;
 
 
         /*********
@@ -101,8 +102,8 @@ namespace StepsTakenOnScreen
                 str = InsertLine(str, GetMailPerson());
             }
 
-
-            DrawHelper.DrawHoverBox(spriteBatch, str, new Vector2(Config.HorizontalOffset,Config.VerticalOffset), Game1.viewport.Width);
+            if (str != "")
+                DrawHelper.DrawHoverBox(spriteBatch, str, new Vector2(Config.HorizontalOffset,Config.VerticalOffset), Game1.viewport.Width);
 
         }
 
@@ -157,10 +158,11 @@ namespace StepsTakenOnScreen
         private void CalculatePredictions()
         {
             // Only do calculations if necessary
-            if (lastStepsTakenCalculation == Game1.stats.StepsTaken)
+            if (lastStepsTakenCalculation == Game1.stats.StepsTaken && daysPlayedCalculation == Game1.stats.DaysPlayed)
                 return;
 
             lastStepsTakenCalculation = (int)Game1.stats.StepsTaken;
+            daysPlayedCalculation = (int)Game1.stats.DaysPlayed;
 
             // Simulate new day logic
             Random random = new Random((int)Game1.uniqueIDForThisGame / 100 + (int)Game1.stats.DaysPlayed * 10 + 1 + (int)Game1.stats.StepsTaken);
@@ -193,6 +195,7 @@ namespace StepsTakenOnScreen
                 int num = random.Next(16, 64);
                 for (int index = 0; index < num; ++index)
                 {
+                    random.NextDouble();
                     random.NextDouble();
                     random.NextDouble();
                     random.NextDouble();

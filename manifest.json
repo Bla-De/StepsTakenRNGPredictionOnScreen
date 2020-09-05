@@ -6,5 +6,5 @@
   "UniqueID": "BlaDe.StepsTakenOnScreen",
   "EntryDll": "StepsTakenOnScreen.dll",
   "MinimumApiVersion": "2.10.0",
-  "UpdateKeys": []
+  "UpdateKeys": [ "Nexus:6783" ]
 }
