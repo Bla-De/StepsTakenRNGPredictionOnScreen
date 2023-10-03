@@ -62,6 +62,11 @@ namespace StepsTakenOnScreen
                 this.Config = this.Helper.ReadConfig<ModConfig>();
                 this.Monitor.Log("Config reloaded", LogLevel.Info);
             }
+
+            if (e.Button == Config.ToggleHud)
+            {
+                Config.DrawHud = !Config.DrawHud;
+            }
         }
         private void OnRenderedHud(object sender, RenderedHudEventArgs e)
         {
@@ -103,8 +108,10 @@ namespace StepsTakenOnScreen
             }
 
             if (str != "")
-                DrawHelper.DrawHoverBox(spriteBatch, str, new Vector2(Config.HorizontalOffset,Config.VerticalOffset), Game1.viewport.Width);
-
+                if (Config.DrawHud)
+                {
+                    DrawHelper.DrawHoverBox(spriteBatch, str, new Vector2(Config.HorizontalOffset,Config.VerticalOffset), Game1.viewport.Width);
+                }
         }
 
         private string GetStepsTaken()

@@ -5,5 +5,9 @@
   "DisplayGift": false,
   "DisplayDish": false,
   "HorizontalOffset": 0,
-  "VerticalOffset":  0
+  "VerticalOffset":  0,
+  "DrawHud": true,
+  "Keybinds": {
+    "ToggleHud": "OemTilde"
+  }
 }
