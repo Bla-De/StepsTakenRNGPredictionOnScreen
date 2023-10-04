@@ -68,19 +68,17 @@ namespace StepsTakenOnScreen
 
     private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
     {
-      this.Monitor.Log($"Button:{e.Button}, WorldReady: {Context.IsWorldReady}",(LogLevel) 2);
-      if (!Context.IsWorldReady) //&& e.Button != SButton.F5 || e.Button != Config.ToggleHud)
+      
+      if (!Context.IsWorldReady) 
       {
-        this.Monitor.Log("Escaping Button Press", (LogLevel) 2);
         return;
       }
-      if (e.Button == SButton.F5 || e.Button == Config.ToggleHud)
+      if (e.Button == Config.ToggleHud)
       {
-        if (e.Button == Config.ToggleHud)
-        {
-          drawHud = !drawHud;
-          this.Monitor.Log($"Draw Hud:{drawHud}",(LogLevel) 2);
-        }
+        drawHud = !drawHud;
+      }
+      if (e.Button == SButton.F5)
+      {
         this.Config = this.Helper.ReadConfig<ModConfig>();
         this.Monitor.Log("Config reloaded", (LogLevel) 2);
         this.islandWeatherValues = this.Config.TargetWeather.Split(',');
