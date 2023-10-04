@@ -8,7 +8,9 @@ using StardewValley;
 using StardewValley.Network;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
+using GenericModConfigMenu;
 using xTile.Dimensions;
 using Object = StardewValley.Object;
 using Rectangle = Microsoft.Xna.Framework.Rectangle;
@@ -46,6 +48,7 @@ namespace StepsTakenOnScreen
 
     public override void Entry(IModHelper helper)
     {
+      helper.Events.GameLoop.GameLaunched += OnGameLaunched; 
       helper.Events.Input.ButtonPressed += new EventHandler<ButtonPressedEventArgs>(this.OnButtonPressed);
       helper.Events.Input.ButtonReleased += new EventHandler<ButtonReleasedEventArgs>(this.OnButtonReleased);
       helper.Events.Display.RenderedHud += new EventHandler<RenderedHudEventArgs>(this.OnRenderedHud);
@@ -62,6 +65,117 @@ namespace StepsTakenOnScreen
       this.weatherValues = this.Config.TargetWeather.Split(',');
       this.dishValues = this.Config.TargetDish.Split(',');
       this.giftValues = this.Config.TargetGifter.Split(',');
+    }
+
+    public void OnGameLaunched(object sender, GameLaunchedEventArgs e)
+    {
+      var configMenu = this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
+      if (configMenu is null)
+      {
+        this.Monitor.Log("Not Registering Mod with API", (LogLevel) 2);
+        return;
+      }
+      this.Monitor.Log("Registering Mod with API", (LogLevel) 2);
+      configMenu.Register(
+        mod: this.ModManifest,
+        reset: () => this.Config = new ModConfig(),
+        save: () => this.Helper.WriteConfig((this.Config)));
+
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Steps",
+        tooltip: () => "Display current step count",
+        getValue: () => this.Config.DisplaySteps,
+        setValue: value => this.Config.DisplaySteps = value);
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Luck",
+        tooltip: () => "Display predicted luck value",
+        getValue: () => this.Config.DisplayLuck,
+        setValue: value => this.Config.DisplayLuck = value);
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Island Weather",
+        getValue: () => this.Config.DisplayIslandWeather,
+        setValue: value => this.Config.DisplayIslandWeather = value);
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Weather",
+        getValue: () => this.Config.DisplayWeather,
+        setValue: value => this.Config.DisplayWeather = value);
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Gift",
+        tooltip: () => "Display NPC sending gift in mail",
+        getValue: () => this.Config.DisplayGift,
+        setValue: value => this.Config.DisplayGift = value);
+      configMenu.AddBoolOption(
+        mod: this.ModManifest,
+        name: () => "Display Dish",
+        tooltip: () => "Display the Dish of the Day",
+        getValue: () => this.Config.DisplayDish,
+        setValue: value => this.Config.DisplayDish = value);
+      configMenu.AddNumberOption(
+        mod:this.ModManifest,
+        getValue: () => this.Config.HorizontalOffset,
+        setValue: value => this.Config.HorizontalOffset = value,
+        name: () => "Horizontal Offset",
+        tooltip: () => "Sets horizontal position of UI, Integers only");
+      configMenu.AddNumberOption(
+        mod: this.ModManifest,
+        name: () => "Vertical Offset",
+        tooltip: () => "Sets vertical position of UI, Integers only",
+        getValue: () => this.Config.VerticalOffset,
+        setValue: value => this.Config.VerticalOffset = value);
+      configMenu.AddNumberOption(
+        mod: this.ModManifest,
+        name: () => "Target Luck",
+        tooltip: () => "Set target luck value. Values range from -0.1 to +0.1",
+        getValue: () => (float)this.Config.TargetLuck,
+        setValue: value => this.Config.TargetLuck = Math.Round(value,2));
+      configMenu.AddTextOption(
+        mod: this.ModManifest,
+        name: () => "Target Island Weather",
+        tooltip: () => "See documentation for valid weather type strings",
+        getValue: () => this.Config.TargetIslandWeather,
+        setValue: value => this.Config.TargetIslandWeather = value);
+      configMenu.AddTextOption(
+        mod: this.ModManifest,
+        name: () => "Target Weather",
+        tooltip: () => "See documentation for valid weather type strings",
+        getValue: () => this.Config.TargetWeather,
+        setValue: value => this.Config.TargetWeather = value);
+      configMenu.AddTextOption(
+        mod: this.ModManifest,
+        name: () => "Target Gifter",
+        tooltip: () => "Set name of desired gift sending NPC",
+        getValue: () => this.Config.TargetGifter,
+        setValue: value => this.Config.TargetGifter = value);
+      configMenu.AddTextOption(
+        mod: this.ModManifest,
+        name: () => "Target Dish",
+        tooltip: () => "Name of desired 'Dish of the Day'",
+        getValue: () => this.Config.TargetDish,
+        setValue: value => this.Config.TargetDish = value);
+      configMenu.AddNumberOption(
+        mod: this.ModManifest,
+        name: () => "Target Dish Amount",
+        tooltip: () => "Desired number of 'Dish of the Day' available for sale",
+        getValue: () => this.Config.TargetDishAmount,
+        setValue: value => this.Config.TargetDishAmount = value);
+      configMenu.AddNumberOption(
+        mod: this.ModManifest,
+        name: () => "Target Steps Limit",
+        tooltip: () =>
+          "How many more steps the prediction will search through for your desired target combination, Integers only",
+        getValue: () => this.Config.TargetStepsLimit,
+        setValue: value => this.Config.TargetStepsLimit = value);
+      configMenu.AddKeybind(
+        mod: this.ModManifest,
+        name: () => "Toggle UI",
+        tooltip: () => "Set the key used to toggle the prediction UI on/off",
+        getValue: () => this.Config.ToggleHud,
+        setValue: value => this.Config.ToggleHud = value);
     }
 
     private void OnDayStarted(object sender, DayStartedEventArgs e) => this.locationsChecked = false;
