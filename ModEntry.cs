@@ -1,278 +1,339 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using Microsoft.Xna.Framework;
+﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Netcode;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
-using StardewModdingAPI.Utilities;
 using StardewValley;
-using StardewValley.Tools;
+using StardewValley.Network;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using xTile.Dimensions;
+using Object = StardewValley.Object;
+using Rectangle = Microsoft.Xna.Framework.Rectangle;
 
 namespace StepsTakenOnScreen
 {
-    /// <summary>The mod entry point.</summary>
-    public class ModEntry : Mod
+  public class ModEntry : Mod
+  {
+    private ModConfig Config;
+    private double dailyLuck;
+    private int islandWeatherForTomorrow;
+    private int weatherForTomorrow;
+    private int dishOfTheDay;
+    private int dishOfTheDayAmount;
+    private string mailPerson;
+    private int lastStepsTakenCalculation = -1;
+    private int daysPlayedCalculation = -1;
+    private int targetStepsCalculation = -1;
+    private int targetDay = -1;
+    private string labelStepsTaken;
+    private string labelDailyLuck;
+    private string labelIslandWeather;
+    private string labelWeather;
+    private string labelDish;
+    private string labelGift;
+    private string labelSearch;
+    private string[] islandWeatherValues;
+    private string[] weatherValues;
+    private string[] dishValues;
+    private string[] giftValues;
+    private bool locationsChecked;
+    private int extraCalls;
+    private bool targetFound;
+    private bool drawHud = true;
+
+    public override void Entry(IModHelper helper)
     {
-        /*********
-        ** Properties
-        *********/
-        /// <summary>The mod configuration from the player.</summary>
-        private ModConfig Config;
-        private double dailyLuck;
-        private int weatherForTomorrow;
-        private int dishOfTheDay;
-        private int dishOfTheDayAmount;
-        private string mailPerson;
-
-        private int lastStepsTakenCalculation = -1;
-        private int daysPlayedCalculation = -1;
-
-
-        /*********
-        ** Public methods
-        *********/
-        /// <summary>The mod entry point, called after the mod is first loaded.</summary>
-        /// <param name="helper">Provides simplified APIs for writing mods.</param>
-        public override void Entry(IModHelper helper)
-        {
-            helper.Events.Input.ButtonPressed += this.OnButtonPressed;
-            helper.Events.Display.RenderedHud += this.OnRenderedHud;
-
-            this.Config = this.Helper.ReadConfig<ModConfig>();
-        }
-
-
-        /*********
-        ** Private methods
-        *********/
-        /// <summary>Raised after the player presses a button on the keyboard, controller, or mouse.</summary>
-        /// <param name="sender">The event sender.</param>
-        /// <param name="e">The event data.</param>
-        private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
-        {
-            // ignore if player hasn't loaded a save yet
-            if (!Context.IsWorldReady)
-                return;
-
-            // Refresh Config
-            if (e.Button == SButton.F5)
-            {
-                this.Config = this.Helper.ReadConfig<ModConfig>();
-                this.Monitor.Log("Config reloaded", LogLevel.Info);
-            }
-
-            if (e.Button == Config.ToggleHud)
-            {
-                Config.DrawHud = !Config.DrawHud;
-            }
-        }
-        private void OnRenderedHud(object sender, RenderedHudEventArgs e)
-        {
-            // get location info
-
-            SpriteBatch spriteBatch = Game1.spriteBatch;
-
-            // Calculate predictions if required
-            if (Config.DisplayDish || Config.DisplayGift || Config.DisplayLuck || Config.DisplayWeather)
-            {
-                CalculatePredictions();
-            }
-
-            string str = "";
-
-            if (Config.DisplaySteps)
-            {
-                str = InsertLine(str, GetStepsTaken());
-            }
-           
-            if (Config.DisplayLuck)
-            {
-                str = InsertLine(str, GetLuck());
-            }
-
-            if (Config.DisplayWeather)
-            {
-                str = InsertLine(str, GetWeather());
-            }
-
-            if (Config.DisplayDish)
-            {
-                str = InsertLine(str, GetDishOfTheDay());
-            }
-
-            if (Config.DisplayGift)
-            {
-                str = InsertLine(str, GetMailPerson());
-            }
-
-            if (str != "")
-                if (Config.DrawHud)
-                {
-                    DrawHelper.DrawHoverBox(spriteBatch, str, new Vector2(Config.HorizontalOffset,Config.VerticalOffset), Game1.viewport.Width);
-                }
-        }
-
-        private string GetStepsTaken()
-        {
-            return "StepsTaken: " + Game1.stats.stepsTaken.ToString();
-        }
-
-        private string GetLuck()
-        {
-            return "Luck Tomorrow: " + dailyLuck.ToString();
-        }
-        private string GetWeather()
-        {
-            string weather = "";
-            switch (weatherForTomorrow)
-            {
-                case 0:
-                    weather = "Sunny";
-                    break;
-                case 1:
-                    weather = "Rain";
-                    break;
-                case 2:
-                    weather = "Debris";
-                    break;
-                case 3:
-                    weather = "Lightning";
-                    break;
-                case 4:
-                    weather = "Festival";
-                    break;
-                case 5:
-                    weather = "Snow";
-                    break;
-                case 6:
-                    weather = "Wedding";
-                    break;
-            }
-            return "Weather Aftermorrow: " + weather;
-        }
-        private string GetDishOfTheDay()
-        {
-            return "Dish of the Day: " + Game1.objectInformation[dishOfTheDay].Split('/')[4] + " (" + dishOfTheDayAmount.ToString() + ")";
-        }
-
-        private string GetMailPerson()
-        {
-            return "Mail Gift: " + mailPerson;
-        }
-
-        private void CalculatePredictions()
-        {
-            // Only do calculations if necessary
-            if (lastStepsTakenCalculation == Game1.stats.StepsTaken && daysPlayedCalculation == Game1.stats.DaysPlayed)
-                return;
-
-            lastStepsTakenCalculation = (int)Game1.stats.StepsTaken;
-            daysPlayedCalculation = (int)Game1.stats.DaysPlayed;
-
-            // Simulate new day logic
-            Random random = new Random((int)Game1.uniqueIDForThisGame / 100 + (int)Game1.stats.DaysPlayed * 10 + 1 + (int)Game1.stats.StepsTaken);
-
-            // Day of month not yet incremented
-            for (int index = 0; index < Game1.dayOfMonth; ++index)
-                random.Next();
-            dishOfTheDay = random.Next(194, 240);
-            while ((Utility.getForbiddenDishesOfTheDay()).Contains<int>(dishOfTheDay))
-                dishOfTheDay = random.Next(194, 240);
-            dishOfTheDayAmount = random.Next(1, 4 + (random.NextDouble() < 0.08 ? 10 : 0));
-            // Object constructor
-            random.NextDouble();
-            //Rarecrow Society
-            random.NextDouble();
-
-            mailPerson = "";
-            if (Game1.player.friendshipData.Count() > 0)
-            {
-                string key = Game1.player.friendshipData.Keys.ElementAt<string>(random.Next(Game1.player.friendshipData.Keys.Count<string>()));
-                if (random.NextDouble() < (double)(Game1.player.friendshipData[key].Points / 250) * 0.1 && (Game1.player.spouse == null || !Game1.player.spouse.Equals(key)) && Game1.content.Load<Dictionary<string, string>>("Data\\mail").ContainsKey(key))
-                    mailPerson = key;
-            }
-
-            dailyLuck = random.Next(-100, 101) / 1000.0;
-
-            // Debris weather has extra random uses
-            if (Game1.weatherForTomorrow == 2)
-            {
-                int num = random.Next(16, 64);
-                for (int index = 0; index < num; ++index)
-                {
-                    random.NextDouble();
-                    random.NextDouble();
-                    random.NextDouble();
-                    random.NextDouble();
-                    random.NextDouble();
-                    random.NextDouble();
-                }
-            }
-
-            // Need incremented date for next calculations
-            int season = 1;
-            switch (Game1.currentSeason)
-            {
-                case "spring":
-                    season = 1;
-                    break;
-                case "summer":
-                    season = 2;
-                    break;
-                case "fall":
-                    season = 3;
-                    break;
-                case "winter":
-                    season = 4;
-                    break;
-            }
-
-            int dayOfMonth = Game1.dayOfMonth + 1;
-            if (dayOfMonth == 29)
-            {
-                dayOfMonth = 1;
-                season++;
-                if (season == 5)
-                    season = 1;
-            }
-
-            double chanceToRainTomorrow = season != 2 ? (season != 4 ? 0.183 : 0.63) : (dayOfMonth > 1 ? 0.12 + (double)dayOfMonth * (3.0 / 1000.0) : 0.0);
-            if (random.NextDouble() < chanceToRainTomorrow)
-            {
-                weatherForTomorrow = 1;
-                if (season == 2 && random.NextDouble() < 0.85 || season != 4 && random.NextDouble() < 0.25 && (dayOfMonth > 2 && Game1.stats.DaysPlayed > 26U))
-                    weatherForTomorrow = 3;
-                if (season == 4)
-                    weatherForTomorrow = 5;
-            }
-            else
-                weatherForTomorrow = Game1.stats.DaysPlayed <= 1U || (season != 1 || random.NextDouble() >= 0.2) && (season != 3 || random.NextDouble() >= 0.6) ? 0 : 2;
-            if (Utility.isFestivalDay(dayOfMonth + 1, Game1.currentSeason))
-                weatherForTomorrow = 4;
-            if (Game1.stats.DaysPlayed == 1U)
-                weatherForTomorrow = 1;
-
-            // Simulate checks for weather at the start of the next day (literals adjusted from game code)
-            if (Game1.stats.DaysPlayed == 2U)
-                weatherForTomorrow = 0;
-            if (season == 2 && dayOfMonth % 13 == 12)
-                weatherForTomorrow = 3;
-
-            if (dayOfMonth == 28)
-                weatherForTomorrow = 0;
-
-        }
-
-        private string InsertLine(string str, string newStr)
-        {
-            if (str == "")
-            {
-                return newStr;
-            }
-
-            return str + "\r\n" + newStr;
-        }
+      helper.Events.Input.ButtonPressed += new EventHandler<ButtonPressedEventArgs>(this.OnButtonPressed);
+      helper.Events.Input.ButtonReleased += new EventHandler<ButtonReleasedEventArgs>(this.OnButtonReleased);
+      helper.Events.Display.RenderedHud += new EventHandler<RenderedHudEventArgs>(this.OnRenderedHud);
+      helper.Events.GameLoop.DayStarted += new EventHandler<DayStartedEventArgs>(this.OnDayStarted);
+      this.Config = this.Helper.ReadConfig<ModConfig>();
+      this.labelStepsTaken = (this.Helper.Translation.Get("DisplaySteps"));
+      this.labelDailyLuck = (this.Helper.Translation.Get("DisplayLuck"));
+      this.labelIslandWeather = (this.Helper.Translation.Get("DisplayIslandWeather"));
+      this.labelWeather = (this.Helper.Translation.Get("DisplayWeather"));
+      this.labelGift = (this.Helper.Translation.Get("DisplayGift"));
+      this.labelDish = (this.Helper.Translation.Get("DisplayDish"));
+      this.labelSearch = (this.Helper.Translation.Get("DisplaySearch"));
+      this.islandWeatherValues = this.Config.TargetWeather.Split(',');
+      this.weatherValues = this.Config.TargetWeather.Split(',');
+      this.dishValues = this.Config.TargetDish.Split(',');
+      this.giftValues = this.Config.TargetGifter.Split(',');
     }
+
+    private void OnDayStarted(object sender, DayStartedEventArgs e) => this.locationsChecked = false;
+
+    private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
+    {
+      this.Monitor.Log($"Button:{e.Button}, WorldReady: {Context.IsWorldReady}",(LogLevel) 2);
+      if (!Context.IsWorldReady) //&& e.Button != SButton.F5 || e.Button != Config.ToggleHud)
+      {
+        this.Monitor.Log("Escaping Button Press", (LogLevel) 2);
+        return;
+      }
+      if (e.Button == SButton.F5 || e.Button == Config.ToggleHud)
+      {
+        if (e.Button == Config.ToggleHud)
+        {
+          drawHud = !drawHud;
+          this.Monitor.Log($"Draw Hud:{drawHud}",(LogLevel) 2);
+        }
+        this.Config = this.Helper.ReadConfig<ModConfig>();
+        this.Monitor.Log("Config reloaded", (LogLevel) 2);
+        this.islandWeatherValues = this.Config.TargetWeather.Split(',');
+        this.weatherValues = this.Config.TargetWeather.Split(',');
+        this.dishValues = this.Config.TargetDish.Split(',');
+        this.giftValues = this.Config.TargetGifter.Split(',');
+        this.targetStepsCalculation = 0;
+      }
+    }
+
+    private void OnButtonReleased(object sender, ButtonReleasedEventArgs e)
+    {
+      if (!Context.IsWorldReady || !SButtonExtensions.IsActionButton(e.Button) && !SButtonExtensions.IsUseToolButton(e.Button))
+      {return;}
+      Vector2 grabTile = e.Cursor.GrabTile;
+      Object objectAtTile = Game1.currentLocation.getObjectAtTile((int) grabTile.X, (int) grabTile.Y);
+      if (objectAtTile == null || objectAtTile.minutesUntilReady <= 0)
+      {return;}
+      this.locationsChecked = false;
+    }
+
+    private void OnRenderedHud(object sender, RenderedHudEventArgs e)
+    {
+      SpriteBatch spriteBatch1 = Game1.spriteBatch;
+      bool flag = false;
+      if (!this.locationsChecked)
+      {
+        int extraCalls = this.extraCalls;
+        this.CheckLocations();
+        flag = this.extraCalls != extraCalls;
+      }
+      if ((this.Config.DisplayDish || this.Config.DisplayGift || this.Config.DisplayLuck || this.Config.DisplayWeather) && (flag || (long) this.lastStepsTakenCalculation != (long) Game1.stats.StepsTaken || (long) this.daysPlayedCalculation != (long) Game1.stats.DaysPlayed))
+      {
+        this.lastStepsTakenCalculation = (int) Game1.stats.StepsTaken;
+        this.daysPlayedCalculation = (int) Game1.stats.DaysPlayed;
+        this.CalculatePredictions(this.lastStepsTakenCalculation, out this.dailyLuck, out this.islandWeatherForTomorrow, out this.weatherForTomorrow, out this.dishOfTheDay, out this.dishOfTheDayAmount, out this.mailPerson);
+      }
+      string str1 = "";
+      if (this.Config.DisplaySteps)
+        str1 = this.InsertLine(str1, this.GetStepsTaken());
+      if (this.Config.DisplayLuck)
+        str1 = this.InsertLine(str1, this.GetLuck());
+      if (this.Config.DisplayIslandWeather)
+        str1 = this.InsertLine(str1, this.GetIslandWeather(this.islandWeatherForTomorrow));
+      if (this.Config.DisplayWeather)
+        str1 = this.InsertLine(str1, this.GetWeather(this.weatherForTomorrow));
+      if (this.Config.DisplayDish)
+        str1 = this.InsertLine(str1, this.GetDishOfTheDay());
+      if (this.Config.DisplayGift)
+        str1 = this.InsertLine(str1, this.GetMailPerson());
+      if (this.Config.TargetLuck != -1.0 || this.Config.TargetWeather != "" || this.Config.TargetGifter != "" || this.Config.TargetDish != "")
+      {
+        if (flag || (long) Game1.stats.StepsTaken > (long) this.targetStepsCalculation || (long) Game1.stats.daysPlayed != (long) this.targetDay)
+        {
+          this.targetFound = false;
+          this.targetDay = (int) Game1.stats.daysPlayed;
+          for (int index = 0; index < this.Config.TargetStepsLimit; ++index)
+          {
+            this.targetStepsCalculation = index + (int) Game1.stats.StepsTaken;
+            double dailyLuck;
+            int islandWeather;
+            int weather;
+            int dishOfTheDay;
+            int dishOfTheDayAmount;
+            string mailPerson;
+            this.CalculatePredictions(this.targetStepsCalculation, out dailyLuck, out islandWeather, out weather, out dishOfTheDay, out dishOfTheDayAmount, out mailPerson);
+            if ((this.Config.TargetLuck == -1.0 || dailyLuck >= this.Config.TargetLuck) && (this.Config.TargetIslandWeather == "" || ((IEnumerable<string>) this.islandWeatherValues).Contains<string>(this.GetWeatherValue(islandWeather))) && (this.Config.TargetWeather == "" || ((IEnumerable<string>) this.weatherValues).Contains<string>(this.GetWeatherValue(weather))) && (this.Config.TargetDish == "" || ((IEnumerable<string>) this.dishValues).Contains<string>(this.GetDishOfTheDayValue(dishOfTheDay)) && dishOfTheDayAmount >= this.Config.TargetDishAmount) && (this.Config.TargetGifter == "" || ((IEnumerable<string>) this.giftValues).Contains<string>(mailPerson)))
+            {
+              this.targetFound = true;
+              break;
+            }
+          }
+        }
+        string str2 = this.InsertLine(str1, "");
+        str1 = this.InsertLine(!this.targetFound ? this.InsertLine(str2, "Criteria not met after searching to step count: " + this.targetStepsCalculation.ToString()) : this.InsertLine(str2, "Steps required to hit target: " + this.targetStepsCalculation.ToString()), "Criteria:");
+        if (this.Config.TargetLuck != -1.0)
+          str1 = this.InsertLine(str1, "Luck: " + this.Config.TargetLuck.ToString());
+        if (this.Config.TargetIslandWeather != "")
+          str1 = this.InsertLine(str1, "Island Weather: " + this.Config.TargetIslandWeather.ToString());
+        if (this.Config.TargetWeather != "")
+          str1 = this.InsertLine(str1, "Weather: " + this.Config.TargetWeather.ToString());
+        if (this.Config.TargetDish != "")
+          str1 = this.InsertLine(str1, "Dish: " + this.Config.TargetDish.ToString());
+        if (this.Config.TargetGifter != "")
+          str1 = this.InsertLine(str1, "Gifter: " + this.Config.TargetGifter.ToString());
+      }
+      if (str1 == "")
+      {return;}
+      SpriteBatch spriteBatch2 = spriteBatch1;
+      string label = str1;
+      Vector2 vector2 = new Vector2((float) this.Config.HorizontalOffset, (float) this.Config.VerticalOffset);
+      ref Vector2 local = ref vector2;
+      double width = Game1.viewport.Width;
+      if (drawHud)
+      {
+        DrawHelper.DrawHoverBox(spriteBatch2, label, in local, (float) width);
+      }
+    }
+
+    private string GetStepsTaken() => this.labelStepsTaken + ": " + Game1.stats.stepsTaken.ToString();
+
+    private string GetLuck() => this.labelDailyLuck + ": " + this.dailyLuck.ToString();
+
+    private string GetWeatherValue(int weatherValue)
+    {
+      string weatherValue1 = "";
+      switch (weatherValue)
+      {
+        case 0:
+          weatherValue1 = "Sunny";
+          break;
+        case 1:
+          weatherValue1 = "Rain";
+          break;
+        case 2:
+          weatherValue1 = "Debris";
+          break;
+        case 3:
+          weatherValue1 = "Lightning";
+          break;
+        case 4:
+          weatherValue1 = "Festival";
+          break;
+        case 5:
+          weatherValue1 = "Snow";
+          break;
+        case 6:
+          weatherValue1 = "Wedding";
+          break;
+      }
+      return weatherValue1;
+    }
+
+    private string GetIslandWeather(int weatherValue) => this.labelIslandWeather + ": " + this.GetWeatherValue(weatherValue);
+
+    private string GetWeather(int weatherValue) => this.labelWeather + ": " + this.GetWeatherValue(weatherValue);
+
+    private string GetDishOfTheDay() => this.labelDish + ": " + this.GetDishOfTheDayValue(this.dishOfTheDay) + " (" + this.dishOfTheDayAmount.ToString() + ")";
+
+    private string GetDishOfTheDayValue(int dish) => Game1.objectInformation[dish].Split('/')[4];
+
+    private string GetMailPerson() => this.labelGift + ": " + this.mailPerson;
+
+    private void CheckLocations()
+    {
+      if (this.locationsChecked)
+        return;
+      this.locationsChecked = true;
+      this.extraCalls = 0;
+      int minutesUntilMorning = Utility.CalculateMinutesUntilMorning(Game1.timeOfDay);
+      foreach (GameLocation location in (IEnumerable<GameLocation>) Game1.locations)
+      {
+        OverlaidDictionary.PairsCollection pairs = location.objects.Pairs;
+        foreach (KeyValuePair<Vector2, Object> keyValuePair in pairs)
+        {
+          Object @object = keyValuePair.Value;
+          if (@object.heldObject.Value != null && !@object.name.Contains("Table") &&  @object.bigCraftable || ((Item) @object).parentSheetIndex != 165 && (!@object.name.Equals("Bee House") || location.IsOutdoors) &&  @object.minutesUntilReady - minutesUntilMorning > 0)
+            ++this.extraCalls;
+        }
+      }
+    }
+
+    private void CalculatePredictions(
+      int steps,
+      out double dailyLuck,
+      out int islandWeather,
+      out int weather,
+      out int dishOfTheDay,
+      out int dishOfTheDayAmount,
+      out string mailPerson)
+    {
+      this.CheckLocations();
+      Random random = new Random((int) Game1.uniqueIDForThisGame / 100 + (int) Game1.stats.DaysPlayed * 10 + 1 + steps);
+      for (int index = 0; index < Game1.dayOfMonth; ++index)
+        random.Next();
+      dishOfTheDay = random.Next(194, 240);
+      while (((IEnumerable<int>) Utility.getForbiddenDishesOfTheDay()).Contains<int>(dishOfTheDay))
+        dishOfTheDay = random.Next(194, 240);
+      dishOfTheDayAmount = random.Next(1, 4 + (random.NextDouble() < 0.08 ? 10 : 0));
+      random.NextDouble();
+      for (int index = 0; index < this.extraCalls; ++index)
+        random.Next();
+      mailPerson = "";
+      if ( Game1.player.friendshipData.Count() > 0)
+      {
+        string key = ((IEnumerable<string>)  Game1.player.friendshipData.Keys).ElementAt<string>(random.Next(( Game1.player.friendshipData.Keys).Count<string>()));
+        if (random.NextDouble() < (double) ((Game1.player.friendshipData)[key].Points / 250) * 0.1 && (Game1.player.spouse == null || !Game1.player.spouse.Equals(key)) && ((ContentManager) Game1.content).Load<Dictionary<string, string>>("Data\\mail").ContainsKey(key))
+          mailPerson = key;
+      }
+      random.NextDouble();
+      dailyLuck = (double) random.Next(-100, 101) / 1000.0;
+      islandWeather = random.NextDouble() < 0.24 ? 1 : 0;
+      if (Game1.weatherForTomorrow == 2)
+      {
+        int num = random.Next(16, 64);
+        for (int index = 0; index < num; ++index)
+        {
+          random.NextDouble();
+          random.NextDouble();
+          random.NextDouble();
+          random.NextDouble();
+          random.NextDouble();
+          random.NextDouble();
+        }
+      }
+      int num1 = 1;
+      switch (Game1.currentSeason)
+      {
+        case "spring":
+          num1 = 1;
+          break;
+        case "summer":
+          num1 = 2;
+          break;
+        case "fall":
+          num1 = 3;
+          break;
+        case "winter":
+          num1 = 4;
+          break;
+      }
+      int num2 = Game1.dayOfMonth + 1;
+      if (num2 == 29)
+      {
+        num2 = 1;
+        ++num1;
+        if (num1 == 5)
+          num1 = 1;
+      }
+      double num3 = num1 != 2 ? (num1 != 4 ? 0.183 : 0.63) : (num2 > 1 ? 0.12 + (double) num2 * 0.003 : 0.0);
+      if (random.NextDouble() < num3)
+      {
+        weather = 1;
+        if (num1 == 2 && random.NextDouble() < 0.85 || num1 != 4 && random.NextDouble() < 0.25 && num2 > 2 && Game1.stats.DaysPlayed > 26U)
+          weather = 3;
+        if (num1 == 4)
+          weather = 5;
+      }
+      else
+        weather = Game1.stats.DaysPlayed <= 1U || (num1 != 1 || random.NextDouble() >= 0.2) && (num1 != 3 || random.NextDouble() >= 0.6) ? 0 : 2;
+      if (Utility.isFestivalDay(num2 + 1, Game1.currentSeason))
+        weather = 4;
+      if (Game1.stats.DaysPlayed == 1U)
+        weather = 1;
+      if (Game1.stats.DaysPlayed == 2U)
+        weather = 0;
+      if (num1 == 2 && num2 % 13 == 12)
+        weather = 3;
+      if (num2 != 28)
+        return;
+      weather = 0;
+    }
+
+    private string InsertLine(string str, string newStr) => str == "" ? newStr : str + "\r\n" + newStr;
+  }
 }

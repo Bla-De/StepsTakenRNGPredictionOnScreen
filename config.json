@@ -1,13 +1,19 @@
 ﻿{
   "DisplaySteps": true,
   "DisplayLuck": true,
+  "DisplayIslandWeather": false,
   "DisplayWeather": true,
   "DisplayGift": false,
   "DisplayDish": false,
-  "HorizontalOffset": 0,
-  "VerticalOffset":  0,
   "DrawHud": true,
-  "Keybinds": {
-    "ToggleHud": "OemTilde"
-  }
+  "ToggleHud": "OemTilde",
+  "HorizontalOffset": 0,
+  "VerticalOffset": 0,
+  "TargetLuck": 0.08,
+  "TargetIslandWeather": "",
+  "TargetWeather": "Rain",
+  "TargetGifter": "",
+  "TargetDish": "",
+  "TargetDishAmount": 0,
+  "TargetStepsLimit": 1000
 }
