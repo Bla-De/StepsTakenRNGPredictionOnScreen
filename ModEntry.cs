@@ -45,10 +45,14 @@ namespace StepsTakenOnScreen
     private int extraCalls;
     private bool targetFound;
     private bool drawHud = true;
+    private List<FlagSet> predictedWeather;
+    private double predictedLuck;
 
     public override void Entry(IModHelper helper)
     {
-      helper.Events.GameLoop.GameLaunched += OnGameLaunched; 
+      helper.Events.GameLoop.DayEnding += OnDayEnding;
+      helper.Events.GameLoop.GameLaunched += OnGameLaunched;
+      helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
       helper.Events.Input.ButtonPressed += new EventHandler<ButtonPressedEventArgs>(this.OnButtonPressed);
       helper.Events.Input.ButtonReleased += new EventHandler<ButtonReleasedEventArgs>(this.OnButtonReleased);
       helper.Events.Display.RenderedHud += new EventHandler<RenderedHudEventArgs>(this.OnRenderedHud);
@@ -67,6 +71,52 @@ namespace StepsTakenOnScreen
       this.giftValues = this.Config.TargetGifter.Split(',');
     }
 
+    private void OnSaveLoaded(object sender, SaveLoadedEventArgs e)
+    {
+      predictedWeather = new List<FlagSet>(); //re-initialize empty list when save loads, to prevent data leaking between saves and list bloating.
+    }
+
+    private void OnDayEnding(object sender, DayEndingEventArgs e) //grabs the predicted weather, the day it is predicted for, and the season. Stores it in a FlagSet for use on DayStart to make sure weather is set to match prediction.
+    {
+      Dictionary<int, string> intToSeason = new Dictionary<int, string>()
+      {
+        {1,"spring"},
+        {2,"summer"},
+        {3,"fall"},
+        {4,"winter"}
+      };
+      Dictionary<string, int> seasonToInt = new Dictionary<string, int>()
+      {
+        { "spring", 1 },
+        { "summer", 2 },
+        { "fall", 3 },
+        { "winter", 4 }
+      };
+      int currentDay = Game1.dayOfMonth;
+      int targetDay;
+      int currentSeason = seasonToInt[Game1.currentSeason];
+      string targetSeason;
+      if (currentDay + 1 > 28)
+      {
+        targetDay = currentDay + 1 - 28;
+        if (currentSeason == 4)
+        {
+          targetSeason = intToSeason[1];
+        }
+        else
+        {
+          targetSeason = intToSeason[currentSeason + 1];
+        }
+      }
+      else
+      {
+        targetDay = currentDay + 1;
+        targetSeason = intToSeason[currentSeason];
+      }
+      FlagSet flagSet = new FlagSet(targetDay, targetSeason, weatherForTomorrow);
+      predictedWeather.Add(flagSet);
+      predictedLuck = dailyLuck;
+    }
     public void OnGameLaunched(object sender, GameLaunchedEventArgs e)
     {
       var configMenu = this.Helper.ModRegistry.GetApi<IGenericModConfigMenuApi>("spacechase0.GenericModConfigMenu");
@@ -79,7 +129,11 @@ namespace StepsTakenOnScreen
       configMenu.Register(
         mod: this.ModManifest,
         reset: () => this.Config = new ModConfig(),
-        save: () => this.Helper.WriteConfig((this.Config)));
+        save: () =>
+        {
+          this.Helper.WriteConfig((this.Config));
+          ReloadConfig();
+        });
 
       configMenu.AddBoolOption(
         mod: this.ModManifest,
@@ -178,7 +232,29 @@ namespace StepsTakenOnScreen
         setValue: value => this.Config.ToggleHud = value);
     }
 
-    private void OnDayStarted(object sender, DayStartedEventArgs e) => this.locationsChecked = false;
+    private void OnDayStarted(object sender, DayStartedEventArgs e)
+    {
+      //Monitor.Log($"predictedWeather Length: {predictedWeather.Count}",(LogLevel)2);
+      this.locationsChecked = false;
+      //this code will check if the 0th index of weatherPredictions is for the current Day. If it is, it will set the weather and the luck, then remove the 0th item from weatherPredictions
+      if (predictedWeather.Count == 0)
+      {
+        return;
+      }
+      var currentSeason = Game1.currentSeason;
+      var currentDay = Game1.dayOfMonth;
+      if (predictedWeather[0].GetSeason() == currentSeason)
+      {
+        //Monitor.Log($"Season: {predictedWeather[0].GetSeason()}",(LogLevel)2);
+        if (predictedWeather[0].GetDay() == currentDay)
+        {
+          //Monitor.Log($"Day: {predictedWeather[0].GetDay()} Weather: {predictedWeather[0].GetWeather()}",(LogLevel)2);
+          Game1.weatherForTomorrow = predictedWeather[0].GetWeather();
+          predictedWeather.RemoveAt(0);
+        }
+      }
+      Game1.player.team.sharedDailyLuck.Value = predictedLuck; //set luck every day, since it is always predicted for very next day, hopefully works?
+    }
 
     private void OnButtonPressed(object sender, ButtonPressedEventArgs e)
     {
@@ -193,16 +269,20 @@ namespace StepsTakenOnScreen
       }
       if (e.Button == SButton.F5)
       {
-        this.Config = this.Helper.ReadConfig<ModConfig>();
-        this.Monitor.Log("Config reloaded", (LogLevel) 2);
-        this.islandWeatherValues = this.Config.TargetWeather.Split(',');
-        this.weatherValues = this.Config.TargetWeather.Split(',');
-        this.dishValues = this.Config.TargetDish.Split(',');
-        this.giftValues = this.Config.TargetGifter.Split(',');
-        this.targetStepsCalculation = 0;
+        ReloadConfig();
       }
     }
 
+    private void ReloadConfig()
+    {
+      this.Config = this.Helper.ReadConfig<ModConfig>();
+      this.Monitor.Log("Config reloaded", (LogLevel) 2);
+      this.islandWeatherValues = this.Config.TargetWeather.Split(',');
+      this.weatherValues = this.Config.TargetWeather.Split(',');
+      this.dishValues = this.Config.TargetDish.Split(',');
+      this.giftValues = this.Config.TargetGifter.Split(',');
+      this.targetStepsCalculation = 0;
+    }
     private void OnButtonReleased(object sender, ButtonReleasedEventArgs e)
     {
       if (!Context.IsWorldReady || !SButtonExtensions.IsActionButton(e.Button) && !SButtonExtensions.IsUseToolButton(e.Button))
